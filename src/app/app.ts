@@ -643,11 +643,12 @@ export class App implements OnInit, OnDestroy {
     this.darkMode.update(v => !v);
   }
 
-  toggleNotificaciones() {
+  async toggleNotificaciones() {
     const activar = !this.notificaciones();
     this.notificaciones.set(activar);
     if (activar) {
-      this.pushService.suscribir();
+      const ok = await this.pushService.suscribir();
+      if (!ok) this.notificaciones.set(false);
     } else {
       this.pushService.desuscribir();
     }
