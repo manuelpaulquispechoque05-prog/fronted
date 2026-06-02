@@ -19,13 +19,28 @@ export class PushService {
   }
 
   async suscribir(): Promise<void> {
-    if (!this.swRegistration || !this.authService.isAuthenticated()) return;
+    if (!this.authService.isAuthenticated()) return;
+
+    // Espera hasta 3s a que el Service Worker termine de registrarse.
+    // Evita la race condition: si el usuario toca el toggle antes de que
+    // init() haya terminado, swRegistration es null y la suscripción falla.
+    for (let i = 0; i < 30; i++) {
+      if (this.swRegistration) break;
+      await new Promise(r => setTimeout(r, 100));
+    }
+    if (!this.swRegistration) {
+      console.warn('[Push] Service Worker no disponible después de 3s');
+      return;
+    }
 
     let permiso = Notification.permission;
     if (permiso === 'default') {
       permiso = await Notification.requestPermission();
     }
-    if (permiso !== 'granted') return;
+    if (permiso !== 'granted') {
+      console.warn('[Push] Permiso denegado:', permiso);
+      return;
+    }
 
     try {
       const sub = await this.swRegistration.pushManager.subscribe({
@@ -42,10 +57,10 @@ export class PushService {
       };
 
       this.http.post(`${environment.apiUrl}/push/suscribir`, body).subscribe({
-        error: (err) => console.warn('[Push] Error al suscribir:', err)
+        error: (err) => console.warn('[Push] Error al enviar suscripción al backend:', err)
       });
-    } catch {
-      console.warn('[Push] Suscripción falló');
+    } catch (err) {
+      console.warn('[Push] Suscripción falló:', err);
     }
   }
 
